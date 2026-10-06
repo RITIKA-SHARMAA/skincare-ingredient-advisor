@@ -1,25 +1,122 @@
 name: CI
-on: [push,pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api:
+    name: API (ruff, mypy, pytest)
     runs-on: ubuntu-latest
-    defaults: {run: {working-directory: api}}
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skincare
+          POSTGRES_PASSWORD: skincare
+          POSTGRES_DB: skincare_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U skincare -d skincare_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://skincare:skincare@localhost:5432/skincare_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
       - run: pip install -r requirements.txt
+      - run: ruff format --check .
       - run: ruff check .
       - run: mypy app
       - run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
   web:
+    name: Web (prettier, eslint, tsc, vitest, build)
     runs-on: ubuntu-latest
-    defaults: {run: {working-directory: web}}
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22', cache: npm, cache-dependency-path: web/package-lock.json}
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --run --coverage
+      - run: npm test -- --coverage
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  e2e:
+    name: End-to-end (Playwright + axe)
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skincare
+          POSTGRES_PASSWORD: skincare
+          POSTGRES_DB: skincare
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U skincare -d skincare"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://skincare:skincare@localhost:5432/skincare
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: pip install -r requirements.txt
+        working-directory: api
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npm run e2e
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
+
+  images:
+    name: Docker images build
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t skincare-api api
+      - run: docker build -t skincare-web web

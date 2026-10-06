@@ -15,3 +15,9 @@ test-results/
 .terraform/
 terraform.tfstate*
 api/storage/
+infra/*.tfvars
+!infra/*.tfvars.example
+.terraform.lock.hcl
+.coverage
+coverage.xml
+web/.next/

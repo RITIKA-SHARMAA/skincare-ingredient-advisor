@@ -1,0 +1,4 @@
+project_id         = "your-project-id"
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+# After the first apply, set this to the web_url output and apply again.
+# cors_origins     = "https://skincare-web-xxxxx-el.a.run.app"
