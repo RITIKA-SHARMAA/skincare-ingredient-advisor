@@ -1,141 +1,138 @@
 name,aliases,function,irritant_level
-glycerin,glycerine,Humectant,0
-niacinamide,vitamin b3,Brightening active,1
-ascorbic acid,vitamin c,Antioxidant,3
-salicylic acid,bha,Chemical exfoliant,3
-glycolic acid,,Chemical exfoliant,4
+water,aqua|eau|purified water,Solvent,0
+glycerin,glycerine|glycerol,Humectant,0
+butylene glycol,1 3-butanediol,Humectant,0
+propylene glycol,propanediol 1 2,Humectant,1
+propanediol,1 3-propanediol,Humectant,0
+pentylene glycol,,Humectant,0
+hyaluronic acid,hyaluronan,Humectant,0
+sodium hyaluronate,,Humectant,0
+sodium pca,,Humectant,0
+urea,carbamide,Humectant,1
+betaine,,Humectant,0
+sorbitol,,Humectant,0
+trehalose,,Humectant,0
+aloe barbadensis leaf juice,aloe vera|aloe vera juice,Soothing agent,0
+panthenol,provitamin b5|d-panthenol|dexpanthenol,Soothing agent,0
+allantoin,,Soothing agent,0
+bisabolol,alpha-bisabolol,Soothing agent,0
+centella asiatica extract,cica|gotu kola extract,Soothing agent,0
+madecassoside,,Soothing agent,0
+colloidal oatmeal,avena sativa kernel flour,Soothing agent,0
+beta-glucan,,Soothing agent,0
+dipotassium glycyrrhizate,,Soothing agent,0
+camellia sinensis leaf extract,green tea extract,Antioxidant,0
+tocopherol,vitamin e,Antioxidant,1
+tocopheryl acetate,vitamin e acetate,Antioxidant,1
+ferulic acid,,Antioxidant,1
+resveratrol,,Antioxidant,1
+ubiquinone,coenzyme q10|coq10,Antioxidant,0
+ascorbic acid,vitamin c|l-ascorbic acid,Vitamin C,3
+sodium ascorbyl phosphate,,Vitamin C,1
+magnesium ascorbyl phosphate,,Vitamin C,1
+ascorbyl glucoside,,Vitamin C,1
+ethyl ascorbic acid,3-o-ethyl ascorbic acid,Vitamin C,2
+tetrahexyldecyl ascorbate,,Vitamin C,1
+niacinamide,vitamin b3|nicotinamide,Brightening active,1
+tranexamic acid,,Brightening active,1
+alpha-arbutin,arbutin,Brightening active,1
+kojic acid,,Brightening active,2
+licorice root extract,glycyrrhiza glabra root extract,Brightening active,0
+azelaic acid,,Treatment active,2
+glycolic acid,aha,Chemical exfoliant,4
 lactic acid,,Chemical exfoliant,3
+mandelic acid,,Chemical exfoliant,2
+malic acid,,Chemical exfoliant,2
+citric acid,,pH adjuster,1
+salicylic acid,bha|beta hydroxy acid,Chemical exfoliant,3
+gluconolactone,pha,Chemical exfoliant,1
+lactobionic acid,,Chemical exfoliant,1
+papain,papaya enzyme,Chemical exfoliant,2
 retinol,vitamin a,Retinoid,4
 retinal,retinaldehyde,Retinoid,4
-hyaluronic acid,sodium hyaluronate,Humectant,0
-ceramides,ceramide,Barrier support,0
-tocopherol,vitamin e,Antioxidant,1
-panthenol,provitamin b5,Soothing agent,0
-allantoin,,Soothing agent,0
+retinyl palmitate,,Retinoid,2
+hydroxypinacolone retinoate,granactive retinoid,Retinoid,3
+adapalene,,Retinoid,4
+bakuchiol,,Retinoid alternative,1
+benzoyl peroxide,bpo,Oxidising acne treatment,4
+sulfur,sulphur,Acne treatment,3
+tea tree oil,melaleuca alternifolia leaf oil,Essential oil,3
+palmitoyl tripeptide-1,,Peptide,0
+palmitoyl tetrapeptide-7,,Peptide,0
+acetyl hexapeptide-8,argireline,Peptide,0
+copper tripeptide-1,copper peptides|ghk-cu,Peptide,1
+matrixyl,palmitoyl pentapeptide-4,Peptide,0
+ceramide np,ceramide 3|ceramides,Barrier support,0
+ceramide ap,ceramide 6 ii,Barrier support,0
+ceramide eop,ceramide 1,Barrier support,0
+cholesterol,,Barrier support,0
+phytosphingosine,,Barrier support,0
+linoleic acid,,Barrier support,0
 squalane,,Emollient,0
-dimethicone,,Occlusive,1
-petrolatum,,Occlusive,0
-zinc oxide,,UV filter,1
-titanium dioxide,,UV filter,1
-azelaic acid,,Treatment active,2
-tranexamic acid,,Brightening active,1
-catalogue ingredient 1,,Humectant,0
-catalogue ingredient 2,,Emollient,0
-catalogue ingredient 3,,Emulsifier,0
-catalogue ingredient 4,,Preservative,1
-catalogue ingredient 5,,Solvent,0
-catalogue ingredient 6,,Surfactant,1
-catalogue ingredient 7,,Antioxidant,1
-catalogue ingredient 8,,Soothing agent,0
-catalogue ingredient 9,,UV filter,1
-catalogue ingredient 10,,Thickener,0
-catalogue ingredient 11,,Occlusive,0
-catalogue ingredient 12,,Brightening active,1
-catalogue ingredient 13,,Chemical exfoliant,3
-catalogue ingredient 14,,Retinoid,4
-catalogue ingredient 15,,Barrier support,0
-catalogue ingredient 16,,Chelating agent,0
-catalogue ingredient 17,,pH adjuster,1
-catalogue ingredient 18,,Fragrance,3
-catalogue ingredient 19,,Humectant,0
-catalogue ingredient 20,,Emollient,0
-common ingredient 1,,Humectant,0
-common ingredient 2,,Emollient,0
-common ingredient 3,,Emulsifier,0
-common ingredient 4,,Preservative,1
-common ingredient 5,,Solvent,0
-common ingredient 6,,Surfactant,1
-common ingredient 7,,Antioxidant,1
-common ingredient 8,,Soothing agent,0
-common ingredient 9,,UV filter,1
-common ingredient 10,,Thickener,0
-common ingredient 11,,Occlusive,0
-common ingredient 12,,Brightening active,1
-common ingredient 13,,Chemical exfoliant,3
-common ingredient 14,,Retinoid,4
-common ingredient 15,,Barrier support,0
-common ingredient 16,,Chelating agent,0
-common ingredient 17,,pH adjuster,1
-common ingredient 18,,Fragrance,3
-common ingredient 19,,Humectant,0
-common ingredient 20,,Emollient,0
-common ingredient 21,,Emulsifier,0
-common ingredient 22,,Preservative,1
-common ingredient 23,,Solvent,0
-common ingredient 24,,Surfactant,1
-common ingredient 25,,Antioxidant,1
-common ingredient 26,,Soothing agent,0
-common ingredient 27,,UV filter,1
-common ingredient 28,,Thickener,0
-common ingredient 29,,Occlusive,0
-common ingredient 30,,Brightening active,1
-common ingredient 31,,Chemical exfoliant,3
-common ingredient 32,,Retinoid,4
-common ingredient 33,,Barrier support,0
-common ingredient 34,,Chelating agent,0
-common ingredient 35,,pH adjuster,1
-common ingredient 36,,Fragrance,3
-common ingredient 37,,Humectant,0
-common ingredient 38,,Emollient,0
-common ingredient 39,,Emulsifier,0
-common ingredient 40,,Preservative,1
-common ingredient 41,,Solvent,0
-common ingredient 42,,Surfactant,1
-common ingredient 43,,Antioxidant,1
-common ingredient 44,,Soothing agent,0
-common ingredient 45,,UV filter,1
-common ingredient 46,,Thickener,0
-common ingredient 47,,Occlusive,0
-common ingredient 48,,Brightening active,1
-common ingredient 49,,Chemical exfoliant,3
-common ingredient 50,,Retinoid,4
-common ingredient 51,,Barrier support,0
-common ingredient 52,,Chelating agent,0
-common ingredient 53,,pH adjuster,1
-common ingredient 54,,Fragrance,3
-common ingredient 55,,Humectant,0
-common ingredient 56,,Emollient,0
-common ingredient 57,,Emulsifier,0
-common ingredient 58,,Preservative,1
-common ingredient 59,,Solvent,0
-common ingredient 60,,Surfactant,1
-common ingredient 61,,Antioxidant,1
-common ingredient 62,,Soothing agent,0
-common ingredient 63,,UV filter,1
-common ingredient 64,,Thickener,0
-common ingredient 65,,Occlusive,0
-common ingredient 66,,Brightening active,1
-common ingredient 67,,Chemical exfoliant,3
-common ingredient 68,,Retinoid,4
-common ingredient 69,,Barrier support,0
-common ingredient 70,,Chelating agent,0
-common ingredient 71,,pH adjuster,1
-common ingredient 72,,Fragrance,3
-common ingredient 73,,Humectant,0
-common ingredient 74,,Emollient,0
-common ingredient 75,,Emulsifier,0
-common ingredient 76,,Preservative,1
-common ingredient 77,,Solvent,0
-common ingredient 78,,Surfactant,1
-common ingredient 79,,Antioxidant,1
-common ingredient 80,,Soothing agent,0
-common ingredient 81,,UV filter,1
-common ingredient 82,,Thickener,0
-common ingredient 83,,Occlusive,0
-common ingredient 84,,Brightening active,1
-common ingredient 85,,Chemical exfoliant,3
-common ingredient 86,,Retinoid,4
-common ingredient 87,,Barrier support,0
-common ingredient 88,,Chelating agent,0
-common ingredient 89,,pH adjuster,1
-common ingredient 90,,Fragrance,3
-common ingredient 91,,Humectant,0
-common ingredient 92,,Emollient,0
-common ingredient 93,,Emulsifier,0
-common ingredient 94,,Preservative,1
-common ingredient 95,,Solvent,0
-common ingredient 96,,Surfactant,1
-common ingredient 97,,Antioxidant,1
-common ingredient 98,,Soothing agent,0
-common ingredient 99,,UV filter,1
-common ingredient 100,,Thickener,0
+caprylic/capric triglyceride,,Emollient,0
+isopropyl myristate,,Emollient,2
+cetyl alcohol,,Emollient,0
+cetearyl alcohol,cetostearyl alcohol,Emollient,0
+stearyl alcohol,,Emollient,0
+butyrospermum parkii butter,shea butter,Emollient,0
+simmondsia chinensis seed oil,jojoba oil,Emollient,0
+argania spinosa kernel oil,argan oil,Emollient,0
+rosa canina fruit oil,rosehip oil,Emollient,0
+helianthus annuus seed oil,sunflower seed oil,Emollient,0
+cocos nucifera oil,coconut oil,Emollient,2
+olea europaea fruit oil,olive oil,Emollient,1
+dimethicone,,Occlusive,0
+cyclopentasiloxane,,Emollient,0
+petrolatum,petroleum jelly,Occlusive,0
+mineral oil,paraffinum liquidum,Occlusive,0
+lanolin,,Occlusive,2
+cera alba,beeswax,Occlusive,0
+zinc oxide,,UV filter,0
+titanium dioxide,,UV filter,0
+avobenzone,butyl methoxydibenzoylmethane,UV filter,2
+octinoxate,ethylhexyl methoxycinnamate,UV filter,2
+octocrylene,,UV filter,2
+homosalate,,UV filter,2
+bemotrizinol,bis-ethylhexyloxyphenol methoxyphenyl triazine|tinosorb s,UV filter,1
+ethylhexyl triazone,uvinul t 150,UV filter,1
+phenoxyethanol,,Preservative,1
+ethylhexylglycerin,,Preservative,1
+sodium benzoate,,Preservative,1
+potassium sorbate,,Preservative,1
+methylparaben,,Preservative,1
+propylparaben,,Preservative,1
+benzyl alcohol,,Preservative,2
+chlorphenesin,,Preservative,1
+caprylyl glycol,,Preservative,0
+disodium edta,edta,Chelating agent,0
+sodium phytate,,Chelating agent,0
+sodium hydroxide,,pH adjuster,1
+triethanolamine,tea,pH adjuster,1
+xanthan gum,,Thickener,0
+carbomer,,Thickener,0
+hydroxyethylcellulose,,Thickener,0
+acrylates/c10-30 alkyl acrylate crosspolymer,,Thickener,0
+polysorbate 20,,Emulsifier,0
+polysorbate 80,,Emulsifier,0
+glyceryl stearate,,Emulsifier,0
+peg-100 stearate,,Emulsifier,0
+cetearyl olivate,,Emulsifier,0
+sorbitan olivate,,Emulsifier,0
+sodium lauryl sulfate,sls,Surfactant,4
+sodium laureth sulfate,sles,Surfactant,2
+cocamidopropyl betaine,,Surfactant,1
+decyl glucoside,,Surfactant,0
+coco-glucoside,,Surfactant,0
+sodium cocoyl isethionate,,Surfactant,1
+alcohol denat,denatured alcohol|sd alcohol|ethanol|alcohol,Drying alcohol,3
+isopropyl alcohol,isopropanol,Drying alcohol,3
+parfum,fragrance|perfume,Fragrance,3
+limonene,d-limonene,Fragrance,2
+linalool,,Fragrance,2
+citronellol,,Fragrance,2
+geraniol,,Fragrance,2
+lavandula angustifolia oil,lavender oil,Essential oil,3
+mentha piperita oil,peppermint oil,Essential oil,3
+eucalyptus globulus leaf oil,eucalyptus oil,Essential oil,3
+caffeine,,Antioxidant,0
+snail secretion filtrate,snail mucin,Humectant,0

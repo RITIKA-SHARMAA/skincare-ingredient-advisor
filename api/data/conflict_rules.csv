@@ -1,0 +1,8 @@
+function_a,function_b,severity,reason
+Chemical exfoliant,Retinoid,high,Layering an acid exfoliant with a retinoid in the same routine slot often over-exfoliates and irritates.
+Chemical exfoliant,Chemical exfoliant,medium,Two acid exfoliants in one routine slot raise the chance of irritation.
+Retinoid,Retinoid,medium,Two retinoid products in one routine slot add irritation without much extra benefit.
+Retinoid,Oxidising acne treatment,high,Benzoyl peroxide can degrade some retinoids and the pair is often irritating together.
+Vitamin C,Oxidising acne treatment,medium,Benzoyl peroxide can oxidise vitamin C and reduce its effect.
+Vitamin C,Chemical exfoliant,low,Strong vitamin C and acid exfoliants together can sting; many routines split them morning and evening.
+Drying alcohol,Retinoid,low,High-alcohol products can add dryness on top of retinoid use.
