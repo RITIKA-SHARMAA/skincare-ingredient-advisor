@@ -21,3 +21,7 @@ infra/*.tfvars
 .coverage
 coverage.xml
 web/.next/
+*.egg-info/
+*.tsbuildinfo
+*.egg-info/
+*.tsbuildinfo
