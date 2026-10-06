@@ -40,14 +40,22 @@ def health(): return {"status":"ok"}
 
 @app.post("/analyses",response_model=AnalysisResult)
 def analyse(body: AnalysisRequest, db: Session=Depends(db)):
-    if len(resolve_ingredients(db,body.ingredient_text)[0])+len(resolve_ingredients(db,body.ingredient_text)[1]) > settings.max_ingredients_per_request: raise HTTPException(413,"Too many ingredients")
     resolved, unmatched=resolve_ingredients(db,body.ingredient_text)
+    if len(resolved)+len(unmatched) > settings.max_ingredients_per_request: raise HTTPException(413,"Too many ingredients")
     base=[{"name":x.name,"function":x.function,"irritant_level":x.irritant_level} for _,x in resolved]
-    try:
-        raw=get_llm().explain(base,body.skin_type)
-        results=[IngredientResult.model_validate(x) for x in raw]; status="ai" if settings.llm_provider=="vertex" else "fake"
-    except Exception as exc:
-        log.warning("llm fallback: %s",exc); results=[IngredientResult.model_validate(x) for x in get_llm().explain(base,body.skin_type)]; status="fallback"
+    client=get_llm()
+    raw=None
+    for attempt in range(2):
+        try:
+            raw=client.explain(base,body.skin_type)
+            results=[IngredientResult.model_validate(x) for x in raw]
+            status="ai" if settings.llm_provider.lower()=="vertex" else "fake"
+            break
+        except Exception as exc:
+            log.warning("llm attempt %s failed: %s",attempt + 1,exc)
+    else:
+        results=[IngredientResult.model_validate(x) for x in __import__("app.llm",fromlist=["FakeLLM"]).FakeLLM().explain(base,body.skin_type)]
+        status="fallback"
     payload={"ingredients":[x.model_dump() for x in results],"unmatched":unmatched,"ai_status":status}
     row=Analysis(ingredient_text=body.ingredient_text,skin_type=body.skin_type,ai_status=status,result_json=json.dumps(payload)); db.add(row); db.commit(); db.refresh(row)
     return payload
