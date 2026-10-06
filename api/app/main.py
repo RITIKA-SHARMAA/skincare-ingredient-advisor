@@ -1,117 +1,403 @@
-import json, logging, uuid
-from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+import logging
+import uuid
+from collections.abc import Awaitable, Callable
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
-from .config import settings
-from .db import SessionLocal
-from .models import Analysis, Ingredient, Product, ProductIngredient, Routine, RoutineItem
-from .schemas import *
-from .parser import resolve_ingredients
-from .llm import get_llm
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
+
+from . import analysis as analysis_service
+from .config import Settings, get_settings
 from .conflicts import routine_conflicts
-from .logging_setup import configure_logging
+from .db import get_db
+from .llm import LLMClient, LLMError, VertexGemini
+from .logging_setup import configure_logging, request_id_var
+from .models import Analysis, Product, ProductIngredient, Routine, RoutineItem
+from .parser import IngredientMatcher
+from .schemas import (
+    AnalysisRequest,
+    AnalysisResult,
+    ConflictOut,
+    LabelAnalysisRequest,
+    LabelAnalysisResult,
+    LabelUploadRequest,
+    LabelUploadTicket,
+    ProductCreate,
+    ProductOut,
+    RoutineCreate,
+    RoutineItemCreate,
+    RoutineItemOut,
+    RoutineOut,
+)
+from .storage import (
+    LabelStorage,
+    LocalStorage,
+    ObjectNotFound,
+    StorageError,
+    build_storage,
+    mime_type_for,
+    new_object_name,
+)
 
-configure_logging(); log=logging.getLogger("api")
-@asynccontextmanager
-async def lifespan(app): yield
-app=FastAPI(title="Skincare Ingredient Advisor API",version="0.1.0",lifespan=lifespan)
+configure_logging()
+log = logging.getLogger("api")
 
-def db():
-    s=SessionLocal()
-    try: yield s
-    finally: s.close()
+app = FastAPI(
+    title="Skincare Ingredient Advisor API",
+    version="0.2.0",
+    description="Ingredient analysis, routine conflicts and Gemini-backed explanations. "
+    "Illustrative data only, not medical advice.",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origin_list,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "X-Request-ID"],
+)
 
-@app.middleware("http")
-async def request_context(request: Request, call_next):
-    rid=request.headers.get("X-Request-ID",str(uuid.uuid4())); request.state.request_id=rid
-    try: response=await call_next(request)
-    except Exception: raise
-    response.headers["X-Request-ID"]=rid; return response
+DB = Annotated[Session, Depends(get_db)]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 
-def problem(status:int,title:str,detail:str): return JSONResponse(status_code=status,content={"type":"about:blank","title":title,"status":status,"detail":detail},media_type="application/problem+json")
+_llm: LLMClient | None = None
+
+
+def get_llm() -> LLMClient | None:
+    """None means rules-only mode. The Vertex client is created once and reused."""
+    global _llm
+    settings = get_settings()
+    if settings.llm_provider != "vertex":
+        return None
+    if _llm is None:
+        _llm = VertexGemini(settings)
+    return _llm
+
+
+def get_storage() -> LabelStorage:
+    return build_storage(get_settings())
+
+
+LLM = Annotated[LLMClient | None, Depends(get_llm)]
+Storage = Annotated[LabelStorage, Depends(get_storage)]
+
+
+# ---------------------------------------------------------------- errors and middleware
+
+
+def problem(status_code: int, title: str, detail: object) -> JSONResponse:
+    """RFC 7807 problem details."""
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "type": "about:blank",
+            "title": title,
+            "status": status_code,
+            "detail": detail,
+            "request_id": request_id_var.get(),
+        },
+        media_type="application/problem+json",
+    )
+
 
 @app.exception_handler(HTTPException)
-async def http_problem(_:Request, exc:HTTPException): return problem(exc.status_code,"Request failed",str(exc.detail))
+async def http_problem(_: Request, exc: HTTPException) -> JSONResponse:
+    return problem(exc.status_code, "Request failed", exc.detail)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_problem(_: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = [{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
+    return problem(422, "Validation failed", errors)
+
+
+@app.exception_handler(Exception)
+async def unhandled_problem(_: Request, exc: Exception) -> JSONResponse:
+    log.exception("unhandled error")
+    return problem(500, "Internal error", "Unexpected error; see logs for the request id.")
+
+
+@app.middleware("http")
+async def request_context(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    token = request_id_var.set(request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+def not_found(what: str) -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, f"{what} not found")
+
 
 @app.get("/health")
-def health(): return {"status":"ok"}
+def health() -> dict[str, str]:
+    return {"status": "ok"}
 
-@app.post("/analyses",response_model=AnalysisResult)
-def analyse(body: AnalysisRequest, db: Session=Depends(db)):
-    resolved, unmatched=resolve_ingredients(db,body.ingredient_text)
-    if len(resolved)+len(unmatched) > settings.max_ingredients_per_request: raise HTTPException(413,"Too many ingredients")
-    base=[{"name":x.name,"function":x.function,"irritant_level":x.irritant_level} for _,x in resolved]
-    client=get_llm()
-    raw=None
-    for attempt in range(2):
-        try:
-            raw=client.explain(base,body.skin_type)
-            results=[IngredientResult.model_validate(x) for x in raw]
-            status="ai" if settings.llm_provider.lower()=="vertex" else "fake"
-            break
-        except Exception as exc:
-            log.warning("llm attempt %s failed: %s",attempt + 1,exc)
-    else:
-        results=[IngredientResult.model_validate(x) for x in __import__("app.llm",fromlist=["FakeLLM"]).FakeLLM().explain(base,body.skin_type)]
-        status="fallback"
-    payload={"ingredients":[x.model_dump() for x in results],"unmatched":unmatched,"ai_status":status}
-    row=Analysis(ingredient_text=body.ingredient_text,skin_type=body.skin_type,ai_status=status,result_json=json.dumps(payload)); db.add(row); db.commit(); db.refresh(row)
-    return payload
 
-@app.get("/analyses/{analysis_id}",response_model=AnalysisResult)
-def get_analysis(analysis_id:int,db:Session=Depends(db)):
-    row=db.get(Analysis,analysis_id)
-    if not row: raise HTTPException(404,"Analysis not found")
-    return json.loads(row.result_json)
+# ---------------------------------------------------------------- analyses
 
-@app.get("/products",response_model=list[ProductOut])
-def products(db:Session=Depends(db)):
-    return db.scalars(select(Product).order_by(Product.id.desc())).all()
-@app.post("/products",response_model=ProductOut)
-def create_product(body:ProductCreate,db:Session=Depends(db)):
-    p=Product(name=body.name,brand=body.brand,ingredients_text=body.ingredients_text); db.add(p); db.flush()
-    resolved,_=resolve_ingredients(db,body.ingredients_text)
-    p.ingredients=[ProductIngredient(ingredient=x,position=pos) for pos,x in resolved]
-    db.commit(); db.refresh(p); return p
-@app.get("/products/{product_id}",response_model=ProductOut)
-def get_product(product_id:int,db:Session=Depends(db)):
-    p=db.get(Product,product_id)
-    if not p: raise HTTPException(404,"Product not found")
-    return p
-@app.delete("/products/{product_id}")
-def delete_product(product_id:int,db:Session=Depends(db)):
-    p=db.get(Product,product_id)
-    if not p: raise HTTPException(404,"Product not found")
-    db.delete(p); db.commit(); return {"deleted":True}
 
-@app.get("/routines",response_model=list[RoutineOut])
-def routines(db:Session=Depends(db)): return db.scalars(select(Routine)).all()
-@app.post("/routines",response_model=RoutineOut)
-def create_routine(body:RoutineCreate,db:Session=Depends(db)):
-    r=Routine(name=body.name,skin_type=body.skin_type); db.add(r); db.commit(); db.refresh(r); return r
-@app.get("/routines/{routine_id}/conflicts",response_model=list[ConflictOut])
-def conflicts(routine_id:int,db:Session=Depends(db)):
-    r=db.get(Routine,routine_id)
-    if not r: raise HTTPException(404,"Routine not found")
-    return routine_conflicts(db,r)
-@app.post("/routines/{routine_id}/items")
-def add_item(routine_id:int,body:RoutineItemCreate,db:Session=Depends(db)):
-    if not db.get(Routine,routine_id): raise HTTPException(404,"Routine not found")
-    if not db.get(Product,body.product_id): raise HTTPException(404,"Product not found")
-    item=RoutineItem(routine_id=routine_id,product_id=body.product_id,slot=body.slot); db.add(item); db.commit(); return {"id":item.id}
-@app.delete("/routines/{routine_id}")
-def delete_routine(routine_id:int,db:Session=Depends(db)):
-    r=db.get(Routine,routine_id)
-    if not r: raise HTTPException(404,"Routine not found")
-    db.delete(r); db.commit(); return {"deleted":True}
+@app.post("/analyses", response_model=AnalysisResult, status_code=201)
+def create_analysis(
+    body: AnalysisRequest, db: DB, llm: LLM, settings: AppSettings
+) -> AnalysisResult:
+    try:
+        return analysis_service.analyse(
+            db, llm, body.ingredient_text, body.skin_type, settings.max_ingredients_per_request
+        )
+    except analysis_service.TooManyIngredients as exc:
+        raise HTTPException(413, str(exc)) from exc
 
-@app.post("/labels")
-async def upload_label(file:UploadFile=File(...)):
-    data=await file.read(5*1024*1024+1)
-    if len(data)>5*1024*1024: raise HTTPException(413,"Image too large")
-    import os, pathlib
-    root=pathlib.Path(settings.storage_root); root.mkdir(parents=True,exist_ok=True)
-    name=f"{uuid.uuid4()}.bin"; (root/name).write_bytes(data)
-    return {"object":"labels/"+name,"local":True,"message":"Local bucket stub stored the image. Vertex extraction is enabled only with the Vertex provider."}
+
+@app.get("/analyses/{analysis_id}", response_model=AnalysisResult)
+def get_analysis(analysis_id: int, db: DB) -> AnalysisResult:
+    row = db.get(Analysis, analysis_id)
+    if row is None:
+        raise not_found("Analysis")
+    result = AnalysisResult.model_validate_json(row.result_json)
+    result.id = row.id
+    return result
+
+
+# ---------------------------------------------------------------- products
+
+
+def product_out(product: Product) -> ProductOut:
+    out = ProductOut.model_validate(product)
+    out.ingredient_names = [link.ingredient.name for link in product.ingredients]
+    return out
+
+
+def load_product(db: Session, product_id: int) -> Product:
+    product = db.scalar(
+        select(Product)
+        .where(Product.id == product_id)
+        .options(selectinload(Product.ingredients).selectinload(ProductIngredient.ingredient))
+    )
+    if product is None:
+        raise not_found("Product")
+    return product
+
+
+@app.get("/products", response_model=list[ProductOut])
+def list_products(db: DB) -> list[ProductOut]:
+    products = db.scalars(
+        select(Product)
+        .order_by(Product.id.desc())
+        .options(selectinload(Product.ingredients).selectinload(ProductIngredient.ingredient))
+    )
+    return [product_out(p) for p in products]
+
+
+@app.post("/products", response_model=ProductOut, status_code=201)
+def create_product(body: ProductCreate, db: DB) -> ProductOut:
+    product = Product(name=body.name, brand=body.brand, ingredients_text=body.ingredients_text)
+    matches, _ = IngredientMatcher(db).resolve(body.ingredients_text)
+    seen: set[int] = set()
+    for m in matches:
+        # A product lists each catalogue ingredient once, at its first position.
+        if m.ingredient.id in seen:
+            continue
+        seen.add(m.ingredient.id)
+        product.ingredients.append(ProductIngredient(ingredient=m.ingredient, position=m.position))
+    db.add(product)
+    db.commit()
+    return product_out(load_product(db, product.id))
+
+
+@app.get("/products/{product_id}", response_model=ProductOut)
+def get_product(product_id: int, db: DB) -> ProductOut:
+    return product_out(load_product(db, product_id))
+
+
+@app.delete("/products/{product_id}", status_code=204)
+def delete_product(product_id: int, db: DB) -> Response:
+    product = db.get(Product, product_id)
+    if product is None:
+        raise not_found("Product")
+    db.delete(product)
+    db.commit()
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------- routines
+
+
+def load_routine(db: Session, routine_id: int) -> Routine:
+    routine = db.scalar(
+        select(Routine)
+        .where(Routine.id == routine_id)
+        .options(
+            selectinload(Routine.items)
+            .selectinload(RoutineItem.product)
+            .selectinload(Product.ingredients)
+            .selectinload(ProductIngredient.ingredient)
+        )
+    )
+    if routine is None:
+        raise not_found("Routine")
+    return routine
+
+
+def routine_out(routine: Routine) -> RoutineOut:
+    return RoutineOut(
+        id=routine.id,
+        name=routine.name,
+        skin_type=routine.skin_type,
+        items=[
+            RoutineItemOut(
+                id=item.id,
+                product_id=item.product_id,
+                product_name=item.product.name,
+                slot=item.slot,
+            )
+            for item in routine.items
+        ],
+    )
+
+
+@app.get("/routines", response_model=list[RoutineOut])
+def list_routines(db: DB) -> list[RoutineOut]:
+    routines = db.scalars(
+        select(Routine)
+        .order_by(Routine.id)
+        .options(selectinload(Routine.items).selectinload(RoutineItem.product))
+    )
+    return [routine_out(r) for r in routines]
+
+
+@app.post("/routines", response_model=RoutineOut, status_code=201)
+def create_routine(body: RoutineCreate, db: DB) -> RoutineOut:
+    routine = Routine(name=body.name, skin_type=body.skin_type)
+    db.add(routine)
+    db.commit()
+    return routine_out(load_routine(db, routine.id))
+
+
+@app.get("/routines/{routine_id}", response_model=RoutineOut)
+def get_routine(routine_id: int, db: DB) -> RoutineOut:
+    return routine_out(load_routine(db, routine_id))
+
+
+@app.post("/routines/{routine_id}/items", response_model=RoutineOut, status_code=201)
+def add_routine_item(routine_id: int, body: RoutineItemCreate, db: DB) -> RoutineOut:
+    if db.get(Routine, routine_id) is None:
+        raise not_found("Routine")
+    if db.get(Product, body.product_id) is None:
+        raise not_found("Product")
+    db.add(RoutineItem(routine_id=routine_id, product_id=body.product_id, slot=body.slot))
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Product is already in this routine") from exc
+    return routine_out(load_routine(db, routine_id))
+
+
+@app.delete("/routines/{routine_id}/items/{item_id}", status_code=204)
+def remove_routine_item(routine_id: int, item_id: int, db: DB) -> Response:
+    item = db.get(RoutineItem, item_id)
+    if item is None or item.routine_id != routine_id:
+        raise not_found("Routine item")
+    db.delete(item)
+    db.commit()
+    return Response(status_code=204)
+
+
+@app.delete("/routines/{routine_id}", status_code=204)
+def delete_routine(routine_id: int, db: DB) -> Response:
+    routine = db.get(Routine, routine_id)
+    if routine is None:
+        raise not_found("Routine")
+    db.delete(routine)
+    db.commit()
+    return Response(status_code=204)
+
+
+@app.get("/routines/{routine_id}/conflicts", response_model=list[ConflictOut])
+def get_conflicts(routine_id: int, db: DB) -> list[ConflictOut]:
+    return routine_conflicts(db, load_routine(db, routine_id))
+
+
+# ---------------------------------------------------------------- label photos
+
+
+@app.post("/labels/upload-url", response_model=LabelUploadTicket, status_code=201)
+def create_label_upload(
+    body: LabelUploadRequest, storage: Storage, settings: AppSettings
+) -> LabelUploadTicket:
+    object_name = new_object_name(body.content_type)
+    return LabelUploadTicket(
+        object_name=object_name,
+        upload_url=storage.upload_url(object_name, body.content_type),
+        headers={"Content-Type": body.content_type},
+        expires_in_seconds=settings.signed_url_minutes * 60,
+    )
+
+
+@app.put("/labels/local/{file_name}", status_code=204)
+async def put_local_label(
+    file_name: str, request: Request, storage: Storage, settings: AppSettings
+) -> Response:
+    """Development-only target for upload URLs; Cloud Storage replaces it in GCP."""
+    if not isinstance(storage, LocalStorage):
+        raise not_found("Upload target")
+    object_name = f"labels/{file_name}"
+    try:
+        expected = mime_type_for(object_name)
+    except (KeyError, IndexError) as exc:
+        raise not_found("Upload target") from exc
+    if request.headers.get("content-type") != expected:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, f"Expected {expected}")
+    data = await request.body()
+    if len(data) > settings.max_label_bytes:
+        raise HTTPException(413, "Label image too large")
+    try:
+        storage.write(object_name, data)
+    except ObjectNotFound as exc:
+        raise not_found("Upload target") from exc
+    return Response(status_code=204)
+
+
+@app.post("/labels/analyses", response_model=LabelAnalysisResult, status_code=201)
+def analyse_label(
+    object_name: str,
+    body: LabelAnalysisRequest,
+    db: DB,
+    llm: LLM,
+    storage: Storage,
+    settings: AppSettings,
+) -> LabelAnalysisResult:
+    if llm is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Label reading needs LLM_PROVIDER=vertex; paste the ingredient list instead.",
+        )
+    try:
+        image = storage.read(object_name, settings.max_label_bytes)
+    except ObjectNotFound as exc:
+        raise not_found("Label image") from exc
+    except StorageError as exc:
+        raise HTTPException(413, str(exc)) from exc
+    try:
+        text = llm.extract_ingredients(image, mime_type_for(object_name))
+    except LLMError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not read the label") from exc
+    if len(text) < 2:
+        raise HTTPException(422, "No ingredient list found in the image")
+    try:
+        result = analysis_service.analyse(
+            db, llm, text, body.skin_type, settings.max_ingredients_per_request
+        )
+    except analysis_service.TooManyIngredients as exc:
+        raise HTTPException(413, str(exc)) from exc
+    return LabelAnalysisResult(**result.model_dump(), extracted_text=text)
