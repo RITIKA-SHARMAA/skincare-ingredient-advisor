@@ -1,0 +1,3 @@
+import {api} from '../../lib/api';
+export const dynamic='force-dynamic';
+export default async function Products(){const products=await api.products();return <section><h1 className="text-3xl font-bold">Product catalogue</h1><p className="mt-2 text-stone-600">Saved products and their original ingredient lists.</p><div className="mt-7 grid gap-4 sm:grid-cols-2">{products.length?products.map(p=><article key={p.id} className="rounded-2xl border bg-white p-5"><h2 className="font-bold">{p.name}</h2>{p.brand&&<p className="text-sm text-stone-500">{p.brand}</p>}<p className="mt-3 text-sm text-stone-600">{p.ingredients_text}</p></article>):<p className="rounded-xl border bg-white p-5">No products saved yet.</p>}</div></section>}

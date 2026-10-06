@@ -1,0 +1,2 @@
+@import "tailwindcss";
+:root{color-scheme:light} body{margin:0;background:#fafaf9;color:#1c1917;font-family:Arial,Helvetica,sans-serif}.focus-ring:focus-visible{outline:3px solid #0f766e;outline-offset:2px}

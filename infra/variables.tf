@@ -1,0 +1,1 @@
+variable "project_id" {type=string} variable "region" {type=string default="asia-south1"} variable "github_repository" {type=string default="RITIKA-SHARMAA/skincare-ingredient-advisor"} variable "budget_amount" {type=number default=20}

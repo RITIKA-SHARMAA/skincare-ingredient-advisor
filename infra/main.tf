@@ -1,0 +1,17 @@
+locals { services={api={image="api",port=8000},web={image="web",port=3000}} bucket_name="${var.project_id}-skincare-labels" }
+resource "google_project_service" "apis" { for_each=toset(["run.googleapis.com","sqladmin.googleapis.com","artifactregistry.googleapis.com","secretmanager.googleapis.com","storage.googleapis.com","iamcredentials.googleapis.com","iam.googleapis.com","cloudresourcemanager.googleapis.com","aiplatform.googleapis.com","billingbudgets.googleapis.com"]) project=var.project_id service=each.key disable_on_destroy=false }
+resource "google_artifact_registry_repository" "app" { location=var.region repository_id="skincare" format="DOCKER" depends_on=[google_project_service.apis] }
+resource "google_sql_database_instance" "postgres" { name="skincare-postgres" database_version="POSTGRES_16" region=var.region settings { tier="db-f1-micro" disk_type="PD_SSD" disk_size=10 disk_autoresize=true ip_configuration { ipv4_enabled=true } } deletion_protection=false depends_on=[google_project_service.apis] }
+resource "google_sql_database" "db" { instance=google_sql_database_instance.postgres.name name="skincare" }
+resource "google_storage_bucket" "labels" { name=local.bucket_name location=var.region uniform_bucket_level_access=true force_destroy=true depends_on=[google_project_service.apis] }
+resource "google_secret_manager_secret" "database_url" { secret_id="skincare-database-url" replication {auto{}} depends_on=[google_project_service.apis] }
+resource "google_service_account" "api" { account_id="skincare-api" }
+resource "google_service_account" "web" { account_id="skincare-web" }
+resource "google_project_iam_member" "api_storage" { project=var.project_id role="roles/storage.objectAdmin" member="serviceAccount:${google_service_account.api.email}" }
+resource "google_project_iam_member" "api_vertex" { project=var.project_id role="roles/aiplatform.user" member="serviceAccount:${google_service_account.api.email}" }
+resource "google_project_iam_member" "api_secret" { project=var.project_id role="roles/secretmanager.secretAccessor" member="serviceAccount:${google_service_account.api.email}" }
+resource "google_cloud_run_v2_service" "api" { name="skincare-api" location=var.region deletion_protection=false template { service_account=google_service_account.api.email containers { image="${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}/api:latest" ports {container_port=8000} } } depends_on=[google_project_service.apis] }
+resource "google_cloud_run_v2_service" "web" { name="skincare-web" location=var.region deletion_protection=false template { service_account=google_service_account.web.email containers { image="${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}/web:latest" ports {container_port=3000} } } depends_on=[google_project_service.apis] }
+resource "google_cloud_run_v2_service_iam_member" "api_public" {name=google_cloud_run_v2_service.api.name location=var.region role="roles/run.invoker" member="allUsers"}
+resource "google_cloud_run_v2_service_iam_member" "web_public" {name=google_cloud_run_v2_service.web.name location=var.region role="roles/run.invoker" member="allUsers"}
+resource "google_billing_budget" "demo" { billing_account=var.project_id display_name="skincare-demo-budget" amount { specified_amount { currency_code="USD" units=tostring(var.budget_amount) } } all_updates_rule { monitoring_notification_channels=[] } }
